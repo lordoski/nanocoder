@@ -9,6 +9,7 @@ import type {Task} from './types';
 interface TaskInput {
 	title: string;
 	description?: string;
+	acceptanceCriteria?: string[]; // Clear, testable conditions for task completion
 }
 
 interface CreateTaskArgs {
@@ -23,6 +24,7 @@ const executeCreateTask = async (args: CreateTaskArgs): Promise<string> => {
 		id: generateTaskId(),
 		title: input.title,
 		description: input.description,
+		acceptanceCriteria: input.acceptanceCriteria,
 		status: 'pending' as const,
 		createdAt: now,
 		updatedAt: now,
@@ -70,6 +72,11 @@ const createTaskCoreTool = tool({
 						description: {
 							type: 'string',
 							description: 'Optional detailed description of the task',
+						},
+						acceptanceCriteria: {
+							type: 'array',
+							items: {type: 'string'},
+							description: 'Clear, testable conditions for task completion',
 						},
 					},
 					required: ['title'],

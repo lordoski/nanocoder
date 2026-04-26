@@ -4,7 +4,7 @@ import AssistantMessage from '@/components/assistant-message';
 import AssistantReasoning from '@/components/assistant-reasoning';
 import {ErrorMessage, InfoMessage} from '@/components/message-box';
 import UserMessage from '@/components/user-message';
-import {getAppConfig} from '@/config/index';
+import {getAppConfig, loadJudgeConfig} from '@/config/index';
 import {parseToolCalls} from '@/tool-calling/index';
 import {loadTasks} from '@/tools/tasks/storage';
 import type {Task} from '@/tools/tasks/types';
@@ -60,6 +60,9 @@ interface ProcessAssistantResponseParams {
 	onSetLiveTaskList?: (tasks: Task[] | null) => void;
 	setLiveComponent?: (component: React.ReactNode) => void;
 	tune?: TuneConfig;
+
+	// Judge validation tracking (incremented each time the judge auto-triggers)
+	judgeIterationCount?: number;
 }
 
 // Module-level flag: show XML fallback notice only once per process lifetime.
@@ -707,6 +710,61 @@ export const processAssistantResponse = async (
 		if (hasLiveTaskUpdates) {
 			await flushLiveTaskList();
 			hasLiveTaskUpdates = false;
+		}
+
+		// Judge checkpoint: before ending the conversation, check if there are
+		// completed tasks with acceptance criteria that need validation.
+		const judgeConfig = loadJudgeConfig();
+		let shouldRunJudge = false;
+
+		if (judgeConfig) {
+			try {
+				const allTasks = await loadTasks();
+				const completedWithCriteria = allTasks.filter(
+					t => t.status === 'completed' && t.acceptanceCriteria?.length,
+				);
+				shouldRunJudge = completedWithCriteria.length > 0;
+
+				// Respect maxIterations - stop recursing after limit reached
+				const currentIteration = params.judgeIterationCount ?? 0;
+				const maxIterations = judgeConfig.options.maxIterations;
+				if (maxIterations > 0 && currentIteration >= maxIterations) {
+					shouldRunJudge = false;
+				}
+			} catch {
+				// If task loading fails, skip judge and let conversation end
+				shouldRunJudge = false;
+			}
+		}
+
+		if (shouldRunJudge) {
+			// Inject a user message prompting the agent to run the judge tool
+			const judgePromptMessage: Message = {
+				role: 'user',
+				content:
+					'All tasks appear to be complete. Run the judge tool to validate that each completed task meets its acceptance criteria before finishing.',
+			};
+
+			addToChatQueue(
+				<UserMessage
+					key={`judge-prompt-${getNextComponentKey()}`}
+					message="Validate completed tasks with judge"
+				/>,
+			);
+
+			const judgeBuilder = new MessageBuilder(updatedMessages);
+			judgeBuilder.addMessage(judgePromptMessage);
+			const updatedMessagesWithJudge = judgeBuilder.build();
+			setMessages(updatedMessagesWithJudge);
+
+			// Recurse — the agent will call judge, then we check results on next turn
+			await processAssistantResponse({
+				...params,
+				messages: updatedMessagesWithJudge,
+				conversationStartTime: startTime,
+				judgeIterationCount: (params.judgeIterationCount ?? 0) + 1,
+			});
+			return;
 		}
 
 		setIsGenerating(false);

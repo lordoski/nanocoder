@@ -7,6 +7,7 @@ import {stringReplaceTool} from '@/tools/file-ops/string-replace';
 import {writeFileTool} from '@/tools/file-ops/write-file';
 import {findFilesTool} from '@/tools/find-files';
 import {getGitTools} from '@/tools/git';
+import {judgeTool} from '@/tools/judge-tool';
 import {listDirectoryTool} from '@/tools/list-directory';
 import {getDiagnosticsTool} from '@/tools/lsp-get-diagnostics';
 import {readFileTool} from '@/tools/read-file';
@@ -42,6 +43,8 @@ const staticTools: NanocoderToolExport[] = [
 	listTasksTool,
 	updateTaskTool,
 	deleteTaskTool,
+	// Judge tool - validates completed tasks against acceptance criteria
+	judgeTool,
 ];
 
 // Conditionally available tools (based on system capabilities)

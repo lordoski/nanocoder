@@ -8,4 +8,7 @@ export interface Task {
 	createdAt: string;
 	updatedAt: string;
 	completedAt?: string;
+
+	// NEW FIELD
+	acceptanceCriteria?: string[]; // Array of testable conditions
 }

@@ -409,6 +409,91 @@ function loadNotificationsConfig(): NotificationsConfig | undefined {
 	return getNotificationsPreference();
 }
 
+export interface JudgeOptions {
+	maxIterations: number;
+	timeoutMs?: number;
+}
+
+export interface JudgeProvider {
+	name: string;
+	model: string;
+}
+
+export interface JudgeConfig {
+	enabled: boolean;
+	needsApproval: boolean;
+	provider: JudgeProvider;
+	options: JudgeOptions;
+}
+
+export function loadJudgeConfig(): JudgeConfig | null {
+	const projectConfigPath = join(process.cwd(), 'agents.config.json');
+	const projectResult = tryLoadJudgeFromPath(projectConfigPath);
+	if (projectResult) {
+		return projectResult;
+	}
+
+	const configDir = getConfigPath();
+	const globalConfigPath = join(configDir, 'agents.config.json');
+	return tryLoadJudgeFromPath(globalConfigPath) ?? null;
+}
+
+function tryLoadJudgeFromPath(configPath: string): JudgeConfig | null {
+	if (!existsSync(configPath)) {
+		return null;
+	}
+
+	try {
+		const rawData = readFileSync(configPath, 'utf-8');
+		const config = JSON.parse(rawData);
+		const judge = config.judge;
+		if (judge && typeof judge === 'object' && judge.enabled) {
+			const provider = judge.provider;
+			const options = judge.options || {};
+
+			if (
+				!provider ||
+				typeof provider !== 'object' ||
+				typeof provider.name !== 'string' ||
+				typeof provider.model !== 'string'
+			) {
+				logError(
+					`Invalid judge provider config in ${configPath}: name and model are required`,
+				);
+				return null;
+			}
+
+			return {
+				enabled: true,
+				needsApproval:
+					judge.needsApproval !== undefined
+						? Boolean(judge.needsApproval)
+						: true,
+				provider: {
+					name: provider.name,
+					model: provider.model,
+				},
+				options: {
+					maxIterations:
+						typeof options.maxIterations === 'number'
+							? Math.max(0, options.maxIterations)
+							: 3,
+					timeoutMs:
+						typeof options.timeoutMs === 'number'
+							? Math.max(1000, options.timeoutMs)
+							: 60000,
+				},
+			};
+		}
+	} catch (error) {
+		logError(
+			`Failed to load judge config from ${configPath}: ${String(error)}`,
+		);
+	}
+
+	return null;
+}
+
 // Function to load app configuration from agents.config.json if it exists
 function loadAppConfig(): AppConfig {
 	// Load providers from the new hierarchical configuration system
