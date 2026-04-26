@@ -163,6 +163,20 @@ export interface AppConfig {
 		retentionDays?: number;
 		directory?: string;
 	};
+
+	// Judge configuration for acceptance criteria validation
+	judge?: {
+		enabled: boolean;
+		needsApproval: boolean;
+		provider: {
+			name: string;
+			model: string;
+		};
+		options?: {
+			maxIterations: number;
+			timeoutMs?: number;
+		};
+	};
 }
 
 // MCP Server configuration with source tracking

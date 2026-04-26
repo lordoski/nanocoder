@@ -34,8 +34,17 @@ const executeListTasks = async (args: ListTasksArgs): Promise<string> => {
 				: task.status === 'in_progress'
 					? '◐'
 					: '○';
-		const desc = task.description ? ` - ${task.description}` : '';
-		return `${statusIcon} [${task.id}] ${task.title}${desc}`;
+		let line = `${statusIcon} [${task.id}] ${task.title}`;
+		if (task.description) {
+			line += `\n    Description: ${task.description}`;
+		}
+		if (task.acceptanceCriteria && task.acceptanceCriteria.length > 0) {
+			line += '\n    Acceptance Criteria:';
+			for (const criterion of task.acceptanceCriteria) {
+				line += `\n      - ${criterion}`;
+			}
+		}
+		return line;
 	});
 
 	const counts = {
