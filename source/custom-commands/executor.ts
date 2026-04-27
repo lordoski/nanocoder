@@ -113,14 +113,21 @@ export class CustomCommandExecutor {
 		const paramDefs = command.metadata.parameters ?? [];
 		const paramCount = paramDefs.length;
 
-		// 3. Take only first N tokens (safe mapping — extras are ignored)
-		const mappedTokens = parsed.allTokens.slice(0, paramCount);
+		// 3. Map tokens to params (or use all tokens if no params defined)
+		let mappedTokens: string[];
+		if (paramCount > 0) {
+			mappedTokens = parsed.allTokens.slice(0, paramCount);
+		} else {
+			mappedTokens = parsed.allTokens;
+		}
 
 		// 4. Build resolved parameter list
-		const resolvedParameters: ResolvedParam[] = mappedTokens.map((val, i) => ({
-			name: getParamName(paramDefs[i], i),
-			value: val,
-		}));
+		const resolvedParameters: ResolvedParam[] = mappedTokens.map((val, i) => {
+			if (paramCount > 0 && paramDefs[i]) {
+				return {name: getParamName(paramDefs[i], i), value: val};
+			}
+			return {name: `p${i}`, value: val};
+		});
 
 		// 5. Build template variables for substitution in command content
 		const variables: Record<string, string> = {};

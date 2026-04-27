@@ -8,6 +8,7 @@ import {logError} from '@/utils/message-queue';
 const ARRAY_KEYS = new Set([
 	'aliases',
 	'parameters',
+	'arguments',
 	'tags',
 	'triggers',
 	'examples',
@@ -18,7 +19,7 @@ const ARRAY_KEYS = new Set([
 /**
  * Frontmatter keys whose array items can be objects (key-value pairs after the dash).
  */
-const OBJECT_ARRAY_KEYS = new Set(['parameters']);
+const OBJECT_ARRAY_KEYS = new Set(['parameters', 'arguments']);
 
 /**
  * Set of frontmatter keys that are parsed as numbers
@@ -268,6 +269,10 @@ function mapRawToMetadata(raw: Record<string, unknown>): CustomCommandMetadata {
 
 	if (raw.description) metadata.description = raw.description as string;
 	if (raw.aliases) metadata.aliases = raw.aliases as string[];
+	// Support both "parameters" and "arguments" keys — arguments maps to parameters
+	if (!raw.parameters && raw.arguments) {
+		raw.parameters = raw.arguments;
+	}
 	if (raw.parameters) {
 		const params = raw.parameters as unknown[];
 		metadata.parameters = params.map(normalizeParameter);

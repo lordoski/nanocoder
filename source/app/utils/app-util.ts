@@ -172,8 +172,12 @@ async function handleCustomCommand(
 
 		await onHandleChatMessage(result.prompt);
 	} else if (customCommandExecutor) {
-		// No arguments — use legacy path with empty args array
-		const processedPrompt = customCommandExecutor.execute(customCommand, []);
+		// No arguments or no executor — pass split args so they are not lost
+		const fallbackArgs = rawInput.split(/\s+/).filter(arg => arg);
+		const processedPrompt = customCommandExecutor.execute(
+			customCommand,
+			fallbackArgs,
+		);
 		if (processedPrompt) {
 			await onHandleChatMessage(processedPrompt);
 		} else {

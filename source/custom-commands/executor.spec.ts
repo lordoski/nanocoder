@@ -219,14 +219,15 @@ test('executeWithParams respects quoted arguments', t => {
 	]);
 });
 
-test('executeWithParams handles no parameters defined', t => {
+test('executeWithParams with no parameters defined uses all tokens as fallback', t => {
 	const command = createTestCommand({content: 'No params needed.'});
 
 	const result = executor.executeWithParams(command, 'a b c');
 
-	t.is(result.resolvedParameters.length, 0);
-	t.is(result.echoedArgs, 'test');
-	t.true(result.prompt.includes('Arguments received: 0'));
+	// When no param defs exist, all parsed tokens become resolved params
+	t.is(result.resolvedParameters.length, 3);
+	t.is(result.echoedArgs, 'test a b c');
+	t.true(result.prompt.includes('Arguments received: 3'));
 });
 
 test('executeWithParams substitutes template variables in content', t => {

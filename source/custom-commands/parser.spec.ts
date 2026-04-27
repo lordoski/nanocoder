@@ -886,3 +886,55 @@ Content`;
 	t.is(result.metadata.description, 'Command with: colon');
 	t.deepEqual(result.metadata.tags, ['tag:one', 'tag:two']);
 });
+
+test('parseCommandFile maps arguments key to parameters field', t => {
+	const filePath = join(testDir, 'arguments-key.md');
+	const content = `---
+name: nt.init
+description: Initialize feature
+arguments: [feature_id]
+---
+Feature init content`;
+
+	writeFileSync(filePath, content, 'utf-8');
+
+	const result = parseCommandFile(filePath);
+
+	// "arguments:" should be mapped into metadata.parameters
+	t.deepEqual(result.metadata.parameters, ['feature_id']);
+	t.is(result.content, 'Feature init content');
+});
+
+test('parseCommandFile handles arguments as YAML dash list', t => {
+	const filePath = join(testDir, 'arguments-dash.md');
+	const content = `---
+name: my-cmd
+description: My command
+arguments:
+  - source
+  - target
+---
+Content here`;
+
+	writeFileSync(filePath, content, 'utf-8');
+
+	const result = parseCommandFile(filePath);
+
+	t.deepEqual(result.metadata.parameters, ['source', 'target']);
+});
+
+test('parseCommandFile prefers parameters over arguments when both present', t => {
+	const filePath = join(testDir, 'both-keys.md');
+	const content = `---
+parameters: [param1]
+arguments: [arg1]
+---
+Content`;
+
+	writeFileSync(filePath, content, 'utf-8');
+
+	const result = parseCommandFile(filePath);
+
+	// parameters takes precedence
+	t.deepEqual(result.metadata.parameters, ['param1']);
+});
