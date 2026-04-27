@@ -2,7 +2,7 @@ import React from 'react';
 import {createLLMClient} from '@/client-factory';
 import {ErrorMessage, SuccessMessage} from '@/components/message-box';
 import {reloadAppConfig} from '@/config/index';
-import {loadPreferences, saveTune, updateLastUsed} from '@/config/preferences';
+import {saveTune, updateLastUsed} from '@/config/preferences';
 import type {ActiveMode} from '@/hooks/useAppState';
 import {getToolManager} from '@/message-handler';
 import type {AIProviderConfig, TuneConfig} from '@/types/config';
@@ -141,10 +141,7 @@ export function useModeHandlers({
 			reloadAppConfig();
 
 			try {
-				const preferences = loadPreferences();
-				const {client: newClient, actualProvider} = await createLLMClient(
-					preferences.lastProvider,
-				);
+				const {client: newClient, actualProvider} = await createLLMClient();
 				setClient(newClient);
 				setCurrentProvider(actualProvider);
 				setCurrentProviderConfig(newClient.getProviderConfig());
