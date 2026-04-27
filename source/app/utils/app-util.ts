@@ -138,6 +138,8 @@ async function handleCustomCommand(
 		customCommandLoader,
 		customCommandExecutor,
 		onHandleChatMessage,
+		onAddToChatQueue,
+		getNextComponentKey,
 		onCommandComplete,
 	} = options;
 
@@ -149,16 +151,34 @@ async function handleCustomCommand(
 		return false;
 	}
 
-	const args = message
-		.slice(commandName.length + 2)
-		.trim()
-		.split(/\s+/)
-		.filter(arg => arg);
+	// Extract raw argument portion after the command name (quote-aware parsing is done inside executor)
+	const rawInput = message.slice(commandName.length + 2).trim();
 
-	const processedPrompt = customCommandExecutor?.execute(customCommand, args);
+	// Use new executeWithParams for quote-aware tokenization + safe parameter mapping
+	if (customCommandExecutor && rawInput.length > 0) {
+		const result = customCommandExecutor.executeWithParams(
+			customCommand,
+			rawInput,
+		);
 
-	if (processedPrompt) {
-		await onHandleChatMessage(processedPrompt);
+		// Echo captured args back to chat as info message
+		onAddToChatQueue(
+			React.createElement(InfoMessage, {
+				key: `cmd-echo-${getNextComponentKey()}`,
+				message: `> /${result.echoedArgs}`,
+				hideBox: true,
+			}),
+		);
+
+		await onHandleChatMessage(result.prompt);
+	} else if (customCommandExecutor) {
+		// No arguments — use legacy path with empty args array
+		const processedPrompt = customCommandExecutor.execute(customCommand, []);
+		if (processedPrompt) {
+			await onHandleChatMessage(processedPrompt);
+		} else {
+			onCommandComplete?.();
+		}
 	} else {
 		onCommandComplete?.();
 	}

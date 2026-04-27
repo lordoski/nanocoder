@@ -4,17 +4,30 @@ import {InfoMessage} from '@/components/message-box';
 import {TitledBoxWithPreferences} from '@/components/ui/titled-box';
 import {CustomCommandLoader} from '@/custom-commands/loader';
 import {useTheme} from '@/hooks/useTheme';
-import type {Command, CustomCommand} from '@/types/index';
+import type {
+	Command,
+	CustomCommand,
+	CustomCommandParameter,
+} from '@/types/index';
 
 interface CustomCommandsProps {
 	commands: CustomCommand[];
+}
+
+/** Extract parameter name from a mixed string | object entry. */
+function getParamName(param: string | CustomCommandParameter): string {
+	return typeof param === 'string'
+		? param
+		: (param as CustomCommandParameter).name;
 }
 
 function formatCommand(cmd: CustomCommand): string {
 	const parts: string[] = [`/${cmd.fullName}`];
 
 	if (cmd.metadata.parameters && cmd.metadata.parameters.length > 0) {
-		parts.push(cmd.metadata.parameters.map((p: string) => `<${p}>`).join(' '));
+		parts.push(
+			cmd.metadata.parameters.map(p => `<${getParamName(p)}>`).join(' '),
+		);
 	}
 
 	if (cmd.metadata.description) {

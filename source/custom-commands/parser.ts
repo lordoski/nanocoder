@@ -16,6 +16,11 @@ const ARRAY_KEYS = new Set([
 ]);
 
 /**
+ * Frontmatter keys whose array items can be objects (key-value pairs after the dash).
+ */
+const OBJECT_ARRAY_KEYS = new Set(['parameters']);
+
+/**
  * Set of frontmatter keys that are parsed as numbers
  */
 const NUMBER_KEYS = new Set(['estimated-tokens']);
@@ -49,6 +54,13 @@ function parseEnhancedFrontmatter(frontmatter: string): CustomCommandMetadata {
 	let isMultiline = false;
 	let indentLevel = 0;
 
+	/**
+	 * Track the base indentation level for current array items so we can detect
+	 * when a sub-key belongs to an object item vs a new top-level key.
+	 */
+	let dashIndent = 0;
+	let currentObjectItem: Record<string, string> | null = null;
+
 	const storeValue = (key: string, value: string) => {
 		const trimmedValue = value.trim();
 
@@ -68,10 +80,34 @@ function parseEnhancedFrontmatter(frontmatter: string): CustomCommandMetadata {
 		const line = lines[i];
 		if (!line) continue; // Skip if line is undefined
 		const trimmedLine = line.trim();
+		const lineIndent = line.length - line.trimStart().length;
 
 		// Skip empty lines and comments
 		if (!trimmedLine || trimmedLine.startsWith('#')) {
 			continue;
+		}
+
+		// If we're building an object array item, check for sub-properties
+		if (currentObjectItem && currentKey && OBJECT_ARRAY_KEYS.has(currentKey)) {
+			// Sub-property of the current object item (indented under the dash)
+			if (lineIndent > dashIndent && !trimmedLine.startsWith('- ')) {
+				const colonIdx = findColonOutsideQuotes(trimmedLine);
+				if (colonIdx !== -1) {
+					const subKey = trimmedLine.slice(0, colonIdx).trim();
+					const subVal = trimmedLine
+						.slice(colonIdx + 1)
+						.trim()
+						.replace(/^["']|["']$/g, '');
+					currentObjectItem[subKey] = subVal;
+				}
+				continue;
+			} else {
+				// End of this object item — store it
+				const arr = (raw[currentKey] as unknown[]) ?? [];
+				arr.push(currentObjectItem);
+				raw[currentKey] = arr;
+				currentObjectItem = null;
+			}
 		}
 
 		// Check for YAML dash syntax (array items)
@@ -80,10 +116,26 @@ function parseEnhancedFrontmatter(frontmatter: string): CustomCommandMetadata {
 			currentKey &&
 			ARRAY_KEYS.has(currentKey)
 		) {
-			const arrayItem = trimmedLine
-				.slice(2)
-				.trim()
-				.replace(/^["']|["']$/g, '');
+			dashIndent = lineIndent;
+			const afterDash = trimmedLine.slice(2).trim();
+
+			if (OBJECT_ARRAY_KEYS.has(currentKey)) {
+				// Could be a simple string or the start of an object
+				const colonIdx = findColonOutsideQuotes(afterDash);
+				if (colonIdx !== -1) {
+					// Object-style: "- name: file" → start building object
+					const objKey = afterDash.slice(0, colonIdx).trim();
+					const objVal = afterDash
+						.slice(colonIdx + 1)
+						.trim()
+						.replace(/^["']|["']$/g, '');
+					currentObjectItem = {[objKey]: objVal};
+					continue;
+				}
+			}
+
+			// Simple string item
+			const arrayItem = afterDash.replace(/^["']|["']$/g, '');
 			const arr = (raw[currentKey] as string[]) ?? [];
 			arr.push(arrayItem);
 			raw[currentKey] = arr;
@@ -151,6 +203,13 @@ function parseEnhancedFrontmatter(frontmatter: string): CustomCommandMetadata {
 		}
 	}
 
+	// Flush any remaining object array item at end of frontmatter
+	if (currentObjectItem && currentKey) {
+		const arr = (raw[currentKey] as unknown[]) ?? [];
+		arr.push(currentObjectItem);
+		raw[currentKey] = arr;
+	}
+
 	return mapRawToMetadata(raw);
 }
 
@@ -177,6 +236,31 @@ function findColonOutsideQuotes(line: string): number {
 }
 
 /**
+ * Normalize a single raw parameter entry into a typed CustomCommandParameter.
+ */
+function normalizeParameter(
+	raw: unknown,
+): string | import('@/types/commands').CustomCommandParameter {
+	if (typeof raw === 'string') {
+		return raw;
+	}
+	if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+		const obj = raw as Record<string, unknown>;
+		const name = String(obj.name ?? '');
+		const type = obj.type === 'path' ? ('path' as const) : undefined;
+		const required = Boolean(obj.required);
+		const description = obj.description ? String(obj.description) : undefined;
+		return {
+			name,
+			...(type && {type}),
+			...(required && {required}),
+			...(description && {description}),
+		};
+	}
+	return '';
+}
+
+/**
  * Map raw parsed key-value pairs to typed CustomCommandMetadata.
  */
 function mapRawToMetadata(raw: Record<string, unknown>): CustomCommandMetadata {
@@ -184,7 +268,10 @@ function mapRawToMetadata(raw: Record<string, unknown>): CustomCommandMetadata {
 
 	if (raw.description) metadata.description = raw.description as string;
 	if (raw.aliases) metadata.aliases = raw.aliases as string[];
-	if (raw.parameters) metadata.parameters = raw.parameters as string[];
+	if (raw.parameters) {
+		const params = raw.parameters as unknown[];
+		metadata.parameters = params.map(normalizeParameter);
+	}
 	if (raw.tags) metadata.tags = raw.tags as string[];
 	if (raw.triggers) metadata.triggers = raw.triggers as string[];
 	if (typeof raw['estimated-tokens'] === 'number')

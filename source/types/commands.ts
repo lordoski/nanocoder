@@ -39,10 +39,21 @@ export interface ParsedCommand {
 	bashCommand?: string;
 }
 
+/**
+ * A single parameter definition for a custom command.
+ */
+export interface CustomCommandParameter {
+	name: string;
+	type?: 'text' | 'path';
+	required?: boolean;
+	description?: string;
+}
+
 export interface CustomCommandMetadata {
 	description?: string;
 	aliases?: string[];
-	parameters?: string[];
+	/** Parameters can be defined as simple strings or full objects with metadata. */
+	parameters?: (string | CustomCommandParameter)[];
 	// Skill-like fields (all optional)
 	tags?: string[];
 	triggers?: string[];
