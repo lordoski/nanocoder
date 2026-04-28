@@ -177,9 +177,6 @@ export interface AppConfig {
 			timeoutMs?: number;
 		};
 	};
-
-	// Default development mode for new sessions
-	defaultMode?: 'normal' | 'auto-accept' | 'yolo' | 'plan';
 }
 
 // MCP Server configuration with source tracking
