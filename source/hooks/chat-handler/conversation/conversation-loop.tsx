@@ -811,7 +811,7 @@ export const processAssistantResponse = async (
 			};
 
 			addToChatQueue(
-				<UserMessage
+				<InfoMessage
 					key={`judge-prompt-${getNextComponentKey()}`}
 					message="Validate completed tasks with judge"
 				/>,
