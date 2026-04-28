@@ -151,14 +151,18 @@ async function handleCustomCommand(
 		return false;
 	}
 
-	// Extract raw argument portion after the command name (quote-aware parsing is done inside executor)
-	const rawInput = message.slice(commandName.length + 2).trim();
+	// Extract argument portion after the command name consistently using slice
+	const args = message
+		.slice(commandName.length + 2)
+		.trim()
+		.split(/\s+/)
+		.filter(arg => arg);
 
 	// Use new executeWithParams for quote-aware tokenization + safe parameter mapping
-	if (customCommandExecutor && rawInput.length > 0) {
+	if (args.length > 0 && customCommandExecutor) {
 		const result = customCommandExecutor.executeWithParams(
 			customCommand,
-			rawInput,
+			args.join(' '),
 		);
 
 		// Echo captured args back to chat as info message
@@ -172,12 +176,8 @@ async function handleCustomCommand(
 
 		await onHandleChatMessage(result.prompt);
 	} else if (customCommandExecutor) {
-		// No arguments or no executor — pass split args so they are not lost
-		const fallbackArgs = rawInput.split(/\s+/).filter(arg => arg);
-		const processedPrompt = customCommandExecutor.execute(
-			customCommand,
-			fallbackArgs,
-		);
+		// No arguments — pass split args so they are not lost
+		const processedPrompt = customCommandExecutor.execute(customCommand, []);
 		if (processedPrompt) {
 			await onHandleChatMessage(processedPrompt);
 		} else {

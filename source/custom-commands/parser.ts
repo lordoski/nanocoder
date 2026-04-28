@@ -3,12 +3,12 @@ import type {CustomCommandMetadata, ParsedCustomCommand} from '@/types/index';
 import {logError} from '@/utils/message-queue';
 
 /**
- * Set of frontmatter keys that are always parsed as arrays
+ * Set of frontmatter keys that are always parsed as arrays.
+ * Note: Use "parameters" for defining command parameters (the legacy "arguments" key is no longer supported).
  */
 const ARRAY_KEYS = new Set([
 	'aliases',
 	'parameters',
-	'arguments',
 	'tags',
 	'triggers',
 	'examples',
@@ -19,7 +19,7 @@ const ARRAY_KEYS = new Set([
 /**
  * Frontmatter keys whose array items can be objects (key-value pairs after the dash).
  */
-const OBJECT_ARRAY_KEYS = new Set(['parameters', 'arguments']);
+const OBJECT_ARRAY_KEYS = new Set(['parameters']);
 
 /**
  * Set of frontmatter keys that are parsed as numbers
@@ -269,10 +269,7 @@ function mapRawToMetadata(raw: Record<string, unknown>): CustomCommandMetadata {
 
 	if (raw.description) metadata.description = raw.description as string;
 	if (raw.aliases) metadata.aliases = raw.aliases as string[];
-	// Support both "parameters" and "arguments" keys — arguments maps to parameters
-	if (!raw.parameters && raw.arguments) {
-		raw.parameters = raw.arguments;
-	}
+	// Frontmatter expects only "parameters" for defining command parameters.
 	if (raw.parameters) {
 		const params = raw.parameters as unknown[];
 		metadata.parameters = params.map(normalizeParameter);
