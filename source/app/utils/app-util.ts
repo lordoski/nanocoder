@@ -155,35 +155,31 @@ async function handleCustomCommand(
 	// Extract argument portion after the command name consistently using slice
 	const rawArgs = message.slice(commandName.length + 2).trim();
 
-	// Quote-aware tokenize once, then pass tokens directly to executor
-	if (rawArgs.length > 0 && customCommandExecutor) {
-		const parsedTokens = tokenizeArgs(rawArgs);
-		const result = customCommandExecutor.executeWithParams(
-			customCommand,
-			parsedTokens,
-		);
-
-		// Echo captured args back to chat as info message
-		onAddToChatQueue(
-			React.createElement(InfoMessage, {
-				key: `cmd-echo-${getNextComponentKey()}`,
-				message: `> /${result.echoedArgs}`,
-				hideBox: true,
-			}),
-		);
-
-		await onHandleChatMessage(result.prompt);
-	} else if (customCommandExecutor) {
-		// No arguments — pass split args so they are not lost
-		const processedPrompt = customCommandExecutor.execute(customCommand, []);
-		if (processedPrompt) {
-			await onHandleChatMessage(processedPrompt);
-		} else {
-			onCommandComplete?.();
-		}
-	} else {
+	if (!customCommandExecutor) {
 		onCommandComplete?.();
+		return true;
 	}
+
+	// Quote-aware tokenize once, then pass tokens to executor
+	const parsedTokens = tokenizeArgs(rawArgs);
+	const prompt = customCommandExecutor.execute(customCommand, parsedTokens);
+
+	// Build echo for chat display — mirror executor's param-count limiting
+	const paramCount = (customCommand.metadata.parameters ?? []).length;
+	const mappedTokens =
+		paramCount > 0 ? parsedTokens.slice(0, paramCount) : parsedTokens;
+	const echoedArgs = [commandName, ...mappedTokens].join(' ');
+
+	// Echo captured args back to chat as info message
+	onAddToChatQueue(
+		React.createElement(InfoMessage, {
+			key: `cmd-echo-${getNextComponentKey()}`,
+			message: `> /${echoedArgs}`,
+			hideBox: true,
+		}),
+	);
+
+	await onHandleChatMessage(prompt);
 
 	return true;
 }

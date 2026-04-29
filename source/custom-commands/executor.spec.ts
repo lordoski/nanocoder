@@ -49,8 +49,7 @@ test('execute substitutes parameter variables', t => {
 	});
 
 	const result = executor.execute(command, ['value1', 'value2']);
-	t.true(result.includes('value1'));
-	t.true(result.includes('value2'));
+	t.true(result.includes('Arg1: value1, Arg2: value2'));
 });
 
 test('execute handles missing parameters gracefully', t => {
@@ -62,8 +61,8 @@ test('execute handles missing parameters gracefully', t => {
 	});
 
 	const result = executor.execute(command, ['value1']);
-	// Should still work, missing arg2 becomes empty string
-	t.true(result.includes('value1'));
+	// Should still work; arg2 maps to empty string so template resolves to empty
+	t.true(result.includes('Arg1: value1'));
 });
 
 test('execute includes args variable with all arguments', t => {
@@ -75,16 +74,70 @@ test('execute includes args variable with all arguments', t => {
 	});
 
 	const result = executor.execute(command, ['hello', 'world']);
-	t.true(result.includes('hello world'));
+	t.true(result.includes('All args: hello world'));
 });
 
-test('execute adds note about custom command', t => {
-	const command = createTestCommand();
+test('execute limits tokens to declared param count', t => {
+	const command = createTestCommand({
+		content: '{{file}} only',
+		metadata: {parameters: ['file']},
+	});
 
-	const result = executor.execute(command, []);
-	t.true(result.includes('Executing custom command'));
-	t.true(result.includes('enhance it'));
+	// Pass 3 tokens but only 1 param is declared — extra tokens are ignored
+	const result = executor.execute(command, ['src/main.ts', 'extra', 'words']);
+	t.true(result.includes('src/main.ts only'));
+	t.false(result.includes('extra'));
 });
+
+test('execute uses all tokens when no parameters declared', t => {
+	const command = createTestCommand({content: 'Input: {{args}}'});
+
+	const result = executor.execute(command, ['a', 'b', 'c']);
+	t.true(result.includes('Input: a b c'));
+});
+
+test('execute substitutes template variables in content with object-style params', t => {
+	const command = createTestCommand({
+		fullName: 'analyze',
+		name: 'analyze',
+		content: 'Analyze {{source}} against {{target}}.',
+		metadata: {
+			parameters: [
+				{name: 'source', type: 'path' as const, description: 'Source file'},
+				{name: 'target', required: true},
+			],
+		},
+	});
+
+	const result = executor.execute(command, ['my-code.ts', 'benchmarks/']);
+	t.true(result.includes('Analyze my-code.ts against benchmarks/.') );
+});
+
+test('execute leaves unsubstituted placeholders for missing args', t => {
+	const command = createTestCommand({
+		content: '{{a}} and {{b}} and {{c}}',
+		metadata: {parameters: ['a', 'b', 'c']},
+	});
+
+	const result = executor.execute(command, ['only-one']);
+	t.true(result.includes('only-one and {{b}} and {{c}}'));
+});
+
+test('execute includes resource info when available', t => {
+	const command = createTestCommand({
+		content: 'Work with resources.',
+		metadata: {parameters: ['input']},
+		loadedResources: [{name: 'helper.sh', path: '/tmp/helper.sh', type: 'script'}],
+	});
+
+	const result = executor.execute(command, ['data.txt']);
+	t.true(result.includes('[Available resources:'));
+	t.true(result.includes('- helper.sh (script)'));
+});
+
+// ──────────────────────────────────────────────────────────────
+// formatHelp tests
+// ──────────────────────────────────────────────────────────────
 
 test('formatHelp returns command name', t => {
 	const command = createTestCommand();
@@ -139,169 +192,4 @@ test('formatHelp includes aliases without namespace', t => {
 
 	const result = executor.formatHelp(command);
 	t.true(result.includes('t, testy'));
-});
-
-// ──────────────────────────────────────────────────────────────
-// executeWithParams tests (new parameter-aware execution path)
-// ──────────────────────────────────────────────────────────────
-
-test('executeWithParams returns prompt with EXECUTION CONTEXT block', t => {
-	const command = createTestCommand({
-		content: 'Do something useful.',
-		metadata: {parameters: ['file']},
-	});
-
-	const result = executor.executeWithParams(command, 'src/main.ts');
-	t.true(result.prompt.includes('--- EXECUTION CONTEXT ---'));
-	t.true(result.prompt.includes('Command: /test'));
-	t.true(result.prompt.includes('Arguments received: 1'));
-	t.true(result.prompt.includes('- file: src/main.ts'));
-	t.true(result.prompt.includes('Do something useful.'));
-	t.true(
-		result.prompt.includes(
-			'Execute this command with the provided arguments.',
-		),
-	);
-	t.true(result.prompt.includes('--- END CONTEXT ---'));
-});
-
-test('executeWithParams maps only N args when more provided', t => {
-	const command = createTestCommand({
-		content: 'Process {{file}} only.',
-		metadata: {parameters: ['file']},
-	});
-
-	const result = executor.executeWithParams(
-		command,
-		'src/main.ts extra words here',
-	);
-
-	// Only first arg mapped
-	t.is(result.echoedArgs, 'test src/main.ts');
-	t.is(result.resolvedParameters.length, 1);
-	t.is(result.resolvedParameters[0].name, 'file');
-	t.is(result.resolvedParameters[0].value, 'src/main.ts');
-	// Prompt should not contain 'extra words here' as a param value
-	t.false(result.prompt.includes('- extra:'));
-});
-
-test('executeWithParams echo shows correctly formatted args', t => {
-	const command = createTestCommand({
-		fullName: 'caveman',
-		name: 'caveman',
-		content: 'Compress code.',
-		metadata: {parameters: ['file']},
-	});
-
-	const result = executor.executeWithParams(
-		command,
-		'"src/main.ts" extra',
-	);
-
-	t.is(result.echoedArgs, 'caveman src/main.ts');
-	// Note: "extra" is NOT in echoedArgs because it exceeds param count
-});
-
-test('executeWithParams respects quoted arguments', t => {
-	const command = createTestCommand({
-		content: 'Process {{path}} and {{target}}.',
-		metadata: {parameters: ['path', 'target']},
-	});
-
-	const result = executor.executeWithParams(
-		command,
-		'"my project/src" prod',
-	);
-
-	t.deepEqual(result.resolvedParameters, [
-		{name: 'path', value: 'my project/src'},
-		{name: 'target', value: 'prod'},
-	]);
-});
-
-test('executeWithParams with no parameters defined uses all tokens as fallback', t => {
-	const command = createTestCommand({content: 'No params needed.'});
-
-	const result = executor.executeWithParams(command, 'a b c');
-
-	// When no param defs exist, all parsed tokens become resolved params
-	t.is(result.resolvedParameters.length, 3);
-	t.is(result.echoedArgs, 'test a b c');
-	t.true(result.prompt.includes('Arguments received: 3'));
-});
-
-test('executeWithParams substitutes template variables in content', t => {
-	const command = createTestCommand({
-		content: 'File to analyze: {{file}}. CWD: {{cwd}}.',
-		metadata: {parameters: ['file']},
-	});
-
-	const result = executor.executeWithParams(command, 'app.tsx');
-	t.true(result.prompt.includes('File to analyze: app.tsx'));
-	t.true(result.prompt.includes(`CWD: ${process.cwd()}`));
-});
-
-test('executeWithParams with object-style parameter definitions', t => {
-	const command = createTestCommand({
-		fullName: 'analyze',
-		name: 'analyze',
-		content: 'Analyze {{source}} against {{target}}.',
-		metadata: {
-			parameters: [
-				{name: 'source', type: 'path' as const, description: 'Source file'},
-				{name: 'target', required: true},
-			],
-		},
-	});
-
-	const result = executor.executeWithParams(
-		command,
-		'"my code.ts" benchmarks/',
-	);
-
-	t.deepEqual(result.resolvedParameters, [
-		{name: 'source', value: 'my code.ts'},
-		{name: 'target', value: 'benchmarks/'},
-	]);
-	t.is(result.echoedArgs, 'analyze my code.ts benchmarks/');
-});
-
-test('executeWithParams handles empty input gracefully', t => {
-	const command = createTestCommand({
-		content: 'No args mode.',
-		metadata: {parameters: ['file']},
-	});
-
-	const result = executor.executeWithParams(command, '');
-	t.is(result.resolvedParameters.length, 0);
-	t.is(result.echoedArgs, 'test');
-	t.true(result.prompt.includes('Arguments received: 0'));
-});
-
-test('executeWithParams includes resource info when available', t => {
-	const command = createTestCommand({
-		content: 'Work with resources.',
-		metadata: {parameters: ['input']},
-		loadedResources: [{name: 'helper.sh', path: '/tmp/helper.sh', type: 'script'}],
-	});
-
-	const result = executor.executeWithParams(command, 'data.txt');
-	t.true(result.prompt.includes('[Available resources:'));
-	t.true(result.prompt.includes('- helper.sh (script)'));
-});
-
-test('executeWithParams handles fewer tokens than required params', t => {
-	const command = createTestCommand({
-		content: '{{a}} and {{b}} and {{c}}',
-		metadata: {parameters: ['a', 'b', 'c']},
-	});
-
-	const result = executor.executeWithParams(command, 'only-one');
-
-	t.is(result.resolvedParameters.length, 1);
-	t.is(result.resolvedParameters[0].name, 'a');
-	t.is(result.resolvedParameters[0].value, 'only-one');
-	// Template variables for b and c remain unsubstituted
-	t.true(result.prompt.includes('{{b}}'));
-	t.true(result.prompt.includes('{{c}}'));
 });

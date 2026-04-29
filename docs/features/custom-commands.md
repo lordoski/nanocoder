@@ -112,7 +112,9 @@ aliases:
 
 ## Parameters
 
-Parameters defined in frontmatter become `{{param}}` placeholders in the command body. When the user invokes the command, positional arguments fill in the placeholders.
+Parameters defined in frontmatter become `{{param}}` placeholders in the command body. When the user invokes the command, positional arguments fill in the placeholders. You can define parameters as simple strings or as objects with additional metadata.
+
+### String Syntax (Simple)
 
 ```yaml
 ---
@@ -122,16 +124,77 @@ parameters: [filename, style]
 Review {{filename}} using {{style}} conventions.
 ```
 
-```bash
-/review src/app.ts airbnb
-# Becomes: Review src/app.ts using airbnb conventions.
+### Object Syntax (Advanced)
+
+Use object-style definitions when you need type hints, requirement flags, or descriptions that surface in `/help`.
+
+```yaml
+---
+parameters:
+  - name: filename
+    type: path
+    required: true
+    description: File to review
+  - name: style
+    required: false
+    description: Style guide (e.g., "airbnb", "google")
+---
+
+Review {{filename}} using {{style}} conventions.
 ```
 
-Built-in variables are always available:
+### How Arguments Map to Parameters
 
-- `{{cwd}}` - Current working directory
-- `{{command}}` - The command name
-- `{{args}}` - All arguments as a single string
+When a user runs a command, their input is tokenized (respecting quoted strings), then mapped positionally to your declared parameters:
+
+```bash
+/review src/app.ts airbnb
+# Maps: filename = "src/app.ts", style = "airbnb"
+```
+
+**Key behaviors:**
+
+- **Exact match**: The Nth argument maps to the Nth parameter by position.
+- **Extra args are ignored**: If the command declares 2 parameters but the user provides 3 arguments, only the first 2 are used. The third is silently discarded.
+- **Missing args leave placeholders unsubstituted**: If a user provides fewer arguments than defined parameters, the missing `{{param}}` tokens remain as literal text in the prompt. Write your commands defensively — include fallback instructions for when optional params aren't provided.
+- **Quoted strings preserve spaces**: `/review "my project/src" airbnb` correctly passes `my project/src` as a single token.
+- **No parameters declared?** All user-supplied tokens become available via `{{args}}`.
+
+### What the LLM Sees
+
+When a custom command executes, `{{param}}` placeholders are replaced with their actual values via template substitution. The LLM receives the resolved prompt directly — no separate context block is needed because the parameter values are already inline in the command text itself.
+
+For example, `/review src/app.ts airbnb` results in the LLM seeing:
+
+```
+[Executing custom command: /review]
+
+Review src/app.ts using airbnb conventions.
+```
+
+### Built-in Variables
+
+These are always available regardless of parameter declarations:
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{cwd}}` | Current working directory | `/home/user/my-project` |
+| `{{command}}` | The full command name | `refactor:dry` |
+| `{{args}}` | All mapped arguments joined with spaces | `src/app.ts airbnb` |
+
+### Defensive Command Writing Tips
+
+1. **Handle missing params gracefully**: If a parameter is optional, provide fallback text in your prompt body.
+
+   ```markdown
+   Review {{filename}} for bugs.
+   {% if filename %}Focus specifically on that file.{% endif %}
+   If no file was specified, analyze the most recently modified files.
+   ```
+
+2. **Use parameters instead of hardcoding**: Never embed paths or config values directly — use `{{param}}` so users can customize at invocation time.
+
+3. **Keep parameter count low**: Commands with 1–3 parameters work best. Complex workflows should be broken into smaller commands.
 
 ## Auto-Injection
 
