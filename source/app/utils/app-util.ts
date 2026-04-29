@@ -10,6 +10,7 @@ import {
 	SuccessMessage,
 } from '@/components/message-box';
 import {DELAY_COMMAND_COMPLETE_MS} from '@/constants';
+import {parseArgs as tokenizeArgs} from '@/custom-commands/arg-parser';
 import {CheckpointManager} from '@/services/checkpoint-manager';
 import {executeBashCommand, formatBashResultForLLM} from '@/tools/execute-bash';
 import {clearAllTasks} from '@/tools/tasks/storage';
@@ -152,17 +153,14 @@ async function handleCustomCommand(
 	}
 
 	// Extract argument portion after the command name consistently using slice
-	const args = message
-		.slice(commandName.length + 2)
-		.trim()
-		.split(/\s+/)
-		.filter(arg => arg);
+	const rawArgs = message.slice(commandName.length + 2).trim();
 
-	// Use new executeWithParams for quote-aware tokenization + safe parameter mapping
-	if (args.length > 0 && customCommandExecutor) {
+	// Quote-aware tokenize once, then pass tokens directly to executor
+	if (rawArgs.length > 0 && customCommandExecutor) {
+		const parsedTokens = tokenizeArgs(rawArgs);
 		const result = customCommandExecutor.executeWithParams(
 			customCommand,
-			args.join(' '),
+			parsedTokens,
 		);
 
 		// Echo captured args back to chat as info message

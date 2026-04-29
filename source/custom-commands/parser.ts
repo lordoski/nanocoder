@@ -4,7 +4,6 @@ import {logError} from '@/utils/message-queue';
 
 /**
  * Set of frontmatter keys that are always parsed as arrays.
- * Note: Use "parameters" for defining command parameters (the legacy "arguments" key is no longer supported).
  */
 const ARRAY_KEYS = new Set([
 	'aliases',
