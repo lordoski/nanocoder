@@ -80,3 +80,36 @@ test('isLocalURL handles malformed URL with 127.0.0.1', t => {
 test('isLocalURL returns false for malformed non-local URL', t => {
 	t.false(isLocalURL('not-a-url'));
 });
+
+// ============================================================================
+// isLocalURL - private IP ranges (LAN)
+// ============================================================================
+
+test('isLocalURL returns true for 192.168.x.x LAN addresses', t => {
+	t.true(isLocalURL('http://192.168.1.7:4000/v1/chat/completions'));
+	t.true(isLocalURL('http://192.168.0.1:8080'));
+	t.true(isLocalURL('http://192.168.255.255'));
+});
+
+test('isLocalURL returns true for 10.x.x.x private addresses', t => {
+	t.true(isLocalURL('http://10.0.0.1:3000'));
+	t.true(isLocalURL('http://10.255.255.255'));
+});
+
+test('isLocalURL returns true for 172.16-31.x.x private addresses', t => {
+	t.true(isLocalURL('http://172.16.0.1:8080'));
+	t.true(isLocalURL('http://172.31.255.255'));
+});
+
+test('isLocalURL returns false for 172.x outside the 16-31 range', t => {
+	t.false(isLocalURL('http://172.15.0.1:8080'));
+	t.false(isLocalURL('http://172.32.0.1:8080'));
+});
+
+test('isLocalURL returns true for 169.254.x.x link-local addresses', t => {
+	t.true(isLocalURL('http://169.254.1.1:8080'));
+});
+
+test('isLocalURL handles malformed URL with 192.168.x fallback', t => {
+	t.true(isLocalURL('192.168.1.7:4000'));
+});
