@@ -6,6 +6,7 @@
  */
 
 import {createLLMClient} from '@/client-factory';
+import {getAppConfig} from '@/config/index';
 import {
 	getSubagentProgress,
 	subagentProgress,
@@ -207,6 +208,13 @@ export class SubagentExecutor {
 			available = available.filter(
 				tool => !config.disallowedTools?.includes(tool),
 			);
+		}
+
+		// Honor the global disabledTools list — applies to subagents too.
+		const globalDisabled = getAppConfig().disabledTools;
+		if (globalDisabled && globalDisabled.length > 0) {
+			const disabledSet = new Set(globalDisabled);
+			available = available.filter(name => !disabledSet.has(name));
 		}
 
 		// Always exclude agent tool to prevent infinite recursion

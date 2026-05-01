@@ -721,6 +721,85 @@ test('getAvailableToolNames - plan + minimal excludes mutation tools from minima
 });
 
 // ============================================================================
+// disabledTools — global opt-out list from agents.config.json
+// ============================================================================
+
+test('getAvailableToolNames - disabledTools removes a single tool', t => {
+	const manager = new ToolManager();
+	const baseline = manager.getAvailableToolNames(undefined, 'normal', []);
+	const result = manager.getAvailableToolNames(undefined, 'normal', ['execute_bash']);
+
+	t.true(baseline.includes('execute_bash'));
+	t.false(result.includes('execute_bash'));
+	// Everything else still present
+	t.is(result.length, baseline.length - 1);
+});
+
+test('getAvailableToolNames - disabledTools removes multiple tools', t => {
+	const manager = new ToolManager();
+	const result = manager.getAvailableToolNames(undefined, 'normal', [
+		'execute_bash',
+		'web_search',
+		'fetch_url',
+	]);
+
+	t.false(result.includes('execute_bash'));
+	t.false(result.includes('web_search'));
+	t.false(result.includes('fetch_url'));
+	t.true(result.includes('read_file'));
+});
+
+test('getAvailableToolNames - disabledTools intersects with minimal profile', t => {
+	const manager = new ToolManager();
+	const result = manager.getAvailableToolNames(
+		{enabled: true, toolProfile: 'minimal', aggressiveCompact: false},
+		'normal',
+		['execute_bash'],
+	);
+
+	// minimal profile minus execute_bash
+	t.deepEqual(result, [
+		'read_file',
+		'write_file',
+		'string_replace',
+		'find_files',
+		'search_file_contents',
+		'list_directory',
+		'agent',
+	]);
+});
+
+test('getAvailableToolNames - disabledTools layered with plan mode exclusion', t => {
+	const manager = new ToolManager();
+	const result = manager.getAvailableToolNames(undefined, 'plan', ['read_file']);
+
+	// plan already excludes write_file, string_replace, etc.; disabledTools
+	// further trims the read-only set
+	t.false(result.includes('write_file'));
+	t.false(result.includes('read_file'));
+	t.true(result.includes('find_files'));
+});
+
+test('getAvailableToolNames - empty disabledTools is a no-op', t => {
+	const manager = new ToolManager();
+	const baseline = manager.getAvailableToolNames(undefined, 'normal', []);
+	const expected = manager.getToolNames();
+	t.deepEqual(baseline.sort(), [...expected].sort());
+});
+
+test('getAvailableToolNames - unknown tool names in disabledTools are ignored', t => {
+	const manager = new ToolManager();
+	const result = manager.getAvailableToolNames(undefined, 'normal', [
+		'not_a_real_tool',
+		'execute_bash',
+	]);
+
+	t.false(result.includes('execute_bash'));
+	// No crash, no spurious removals
+	t.true(result.includes('read_file'));
+});
+
+// ============================================================================
 // getEffectiveTools Tests
 // ============================================================================
 

@@ -405,6 +405,42 @@ function tryLoadAlwaysAllowFromPath(configPath: string): string[] | null {
 	return null;
 }
 
+function loadDisabledToolsConfig(): string[] | undefined {
+	// Project config wins over global, mirroring loadAlwaysAllowConfig
+	const projectConfigPath = join(process.cwd(), 'agents.config.json');
+	const projectResult = tryLoadDisabledToolsFromPath(projectConfigPath);
+	if (projectResult) {
+		return projectResult;
+	}
+
+	const configDir = getConfigPath();
+	const globalConfigPath = join(configDir, 'agents.config.json');
+	return tryLoadDisabledToolsFromPath(globalConfigPath) ?? undefined;
+}
+
+function tryLoadDisabledToolsFromPath(configPath: string): string[] | null {
+	if (!existsSync(configPath)) {
+		return null;
+	}
+
+	try {
+		const rawData = readFileSync(configPath, 'utf-8');
+		const config = JSON.parse(rawData);
+		const disabledTools = config.nanocoder?.disabledTools;
+		if (Array.isArray(disabledTools)) {
+			return disabledTools.filter(
+				(item: unknown): item is string => typeof item === 'string',
+			);
+		}
+	} catch (error) {
+		logError(
+			`Failed to load disabledTools config from ${configPath}: ${String(error)}`,
+		);
+	}
+
+	return null;
+}
+
 // Load notifications configuration from preferences
 function loadNotificationsConfig(): NotificationsConfig | undefined {
 	return getNotificationsPreference();
@@ -554,6 +590,9 @@ function loadAppConfig(): AppConfig {
 	// Load top-level alwaysAllow (for non-interactive mode and as fallback)
 	const alwaysAllow = loadAlwaysAllowConfig();
 
+	// Load top-level disabledTools (filtered out of every tool-availability path)
+	const disabledTools = loadDisabledToolsConfig();
+
 	// Load notifications configuration
 	const notifications = loadNotificationsConfig();
 
@@ -565,6 +604,7 @@ function loadAppConfig(): AppConfig {
 		paste,
 		nanocoderTools,
 		alwaysAllow,
+		disabledTools,
 		notifications,
 	};
 }

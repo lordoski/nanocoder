@@ -134,6 +134,12 @@ export interface AppConfig {
 	// Tools that can run automatically in non-interactive mode
 	alwaysAllow?: string[];
 
+	// Tools that are unavailable to the model — filtered out of every code
+	// path that asks "which tools can I use?" (chat, subagents, tune profiles).
+	// Names match registered tool ids (e.g. "execute_bash", "web_search",
+	// "agent"). MCP tools follow the same naming as in their server config.
+	disabledTools?: string[];
+
 	// Nanocoder-specific tool configurations
 	nanocoderTools?: {
 		alwaysAllow?: string[];
@@ -198,7 +204,7 @@ export interface MCPServerConfig {
 }
 
 // Tune configuration for runtime model tuning via /tune command
-export type ToolProfile = 'full' | 'minimal';
+export type ToolProfile = 'full' | 'minimal' | 'nano';
 
 // Model parameters passed directly to AI SDK streamText/generateText
 export interface ModelParameters {
@@ -220,6 +226,9 @@ export interface TuneConfig {
 	toolProfile: ToolProfile;
 	aggressiveCompact: boolean;
 	disableNativeTools?: boolean;
+	// When false, AGENTS.md is not appended to the system prompt. Defaults to true
+	// when undefined to preserve historical behaviour.
+	includeAgentsMd?: boolean;
 	modelParameters?: ModelParameters;
 }
 

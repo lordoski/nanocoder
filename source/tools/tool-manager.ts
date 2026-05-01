@@ -1,3 +1,4 @@
+import {getAppConfig} from '@/config/index';
 import {getBraveSearchApiKey} from '@/config/nanocoder-tools-config';
 // Type-only import — the `MCPClient` runtime value is loaded dynamically
 // inside `initializeMCP()` so sessions without MCP servers never pay the
@@ -113,6 +114,7 @@ export class ToolManager {
 	getAvailableToolNames(
 		tuneConfig?: TuneConfig,
 		developmentMode?: DevelopmentMode,
+		disabledTools?: string[],
 	): string[] {
 		let names = this.getToolNames();
 
@@ -130,6 +132,15 @@ export class ToolManager {
 				const excludeSet = new Set(excluded);
 				names = names.filter(n => !excludeSet.has(n));
 			}
+		}
+
+		// Apply user-configured disable list (intersects with profile + mode).
+		// Defaults to global app config; callers may pass an override (mainly
+		// for tests). This is global policy every caller should observe.
+		const disabled = disabledTools ?? getAppConfig().disabledTools;
+		if (disabled && disabled.length > 0) {
+			const disabledSet = new Set(disabled);
+			names = names.filter(n => !disabledSet.has(n));
 		}
 
 		return names;
