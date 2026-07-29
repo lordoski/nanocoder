@@ -1,5 +1,19 @@
 # @nanocollective/nanocoder
 
+# 1.30.0
+
+- Added first-class provider template for Groq to the setup wizard.
+
+- Moved the rest of nanocoder's configuration into the `/settings` menu, so you can set things up without editing `.json` files by hand. Settings are grouped into Appearance, Input, Behavior, Providers, and Advanced tabs. New menu items let you set the default mode, auto-compact, sessions, reasoning traces, tool auto-approval, and a Web Search API key; view your configured providers and MCP servers before opening the setup wizards; open the Tune Model and Connect IDE wizards; and see the active `NANOCODER_*` environment variables. Advanced also includes an in-app JSON editor for `agents.config.json`: edit strings with the cursor inside the quotes, flip booleans with the arrow keys, and save atomically (a crash can't leave a half-written file).
+
+- Fixed the VS Code extension being unable to start the CLI on Windows. `where.exe` lists npm's unexecutable extensionless shim before `nanocoder.cmd`, and the first line was taken blindly; spawning a `.cmd` also fails with EINVAL because Node refuses to run one without a shell (CVE-2024-27980). Discovery now ranks `where.exe` matches by extension, the CLI is launched via the JS entrypoint resolved from the shim, and a `.cmd` that cannot be resolved falls back to a quoted shell spawn. Spawn failures are also caught and reported in the Nanocoder output channel instead of being swallowed as an unhandled rejection that left the UI stuck on "Connecting".
+
+- Fixed an issue where the VS Code extension failed to locate the Nanocoder CLI for users using Node version managers (NVM, Volta, fnm, pnpm, bun). A fallback directory scan is now performed when `which`/`where` cannot resolve the binary under the extension host's minimal PATH. The child-process PATH is also enriched with the CLI's directory only when a co-located `node` binary is present, preventing shadowing of a user's version-manager Node. Thanks to @akramcodez.
+
+- Fixed user-typed `!` bash commands showing no output in the transcript. Previously the completed card only displayed the command, a status dot, and a token count — the actual result was sent to the model but never shown to the person who typed the command. Completed `!` commands now render their stdout and stderr (tail-capped at 20 lines, with a note when earlier lines are hidden). Model-invoked `execute_bash` calls keep their compact display.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using Nanocoder.
+
 # 1.29.0
 
 - Added the ability to attach to a running subagent session from the terminal UI for interactive debugging. This feature allows users to inspect exactly what a subagent is doing in real-time, including streaming text and reasoning. You can press `Ctrl+S` while a subagent is running to attach to it, cycle between multiple running subagents, and press `Esc` to detach.
